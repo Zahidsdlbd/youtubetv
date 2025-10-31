@@ -64,8 +64,7 @@ jobs:
           git add playlist.m3u8
           git commit -m "🤖 Auto Playlist Update [skip ci]"
 
-          # ✅ Safe pull (no rebase, no conflict errors)
           git pull --no-rebase --no-edit || true
-
           git push
+
           echo "🚀 Playlist successfully updated!"
