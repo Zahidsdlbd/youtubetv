@@ -2,6 +2,7 @@ name: Scheduled HLS Playlist Update
 
 on:
   schedule:
+    # Runs every 30 minutes
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
@@ -43,6 +44,9 @@ jobs:
             pip install yt-dlp
           fi
 
+      - name: Update yt-dlp to latest version
+        run: pip install -U yt-dlp
+
       - name: Generate playlist
         run: python generate_playlist.py
 
@@ -61,7 +65,6 @@ jobs:
 
           git add playlist.m3u8
           git commit -m "🤖 Auto Playlist Update [skip ci]"
-
           git pull --no-rebase --no-edit || true
           git push
 
