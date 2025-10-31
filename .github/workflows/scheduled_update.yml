@@ -2,7 +2,7 @@ name: Scheduled HLS Playlist Update
 
 on:
   schedule:
-    # Runs every 30 minutes (CRON is in UTC)
+    # Runs every 30 minutes (CRON uses UTC)
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
@@ -10,7 +10,7 @@ on:
 permissions:
   contents: write
 
-# Avoid overlapping runs touching the same file
+# Prevent overlapping runs (only one workflow at a time)
 concurrency:
   group: playlist-update
   cancel-in-progress: true
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # required to push back commits
+          fetch-depth: 0  # required for pushing commits
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,28 +46,38 @@ jobs:
             pip install requests
           fi
 
-      - name: Generate playlist
+      - name: Generate Playlist
         run: python generate_playlist.py
 
-      - name: Commit & push if changed
+      - name: Commit & Push if Playlist Changed
         run: |
           set -e
+          echo "🔍 Checking for changes in playlist.m3u8..."
 
-          # Show diff for debugging (optional)
+          # Show current status (for debugging)
           git status
           git --no-pager diff -- playlist.m3u8 || true
 
+          # Skip if no changes
           if git diff --quiet -- playlist.m3u8; then
-            echo "No changes in playlist.m3u8. Skipping commit."
+            echo "✅ No changes detected in playlist.m3u8 — skipping commit."
             exit 0
           fi
 
+          echo "🎯 Changes detected — committing and pushing update..."
+
+          # Configure Git identity
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Rebase to avoid non-fast-forward errors if main moved
-          git pull --rebase
-
+          # ✅ Stage the file BEFORE pulling to avoid the unstaged changes error
           git add playlist.m3u8
+
+          # Pull latest changes safely; abort rebase on conflict
+          git pull --rebase || git rebase --abort
+
+          # Commit and push
           git commit -m "🤖 Playlist update: new HLS links [skip ci]"
           git push
+
+          echo "🚀 Playlist successfully committed and pushed!"
