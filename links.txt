@@ -1,4 +1,4 @@
 # Format: Channel Name | @handle or videoId
-SOMOY NEWS | @SOMOYNEWS
-SOMOY News | @SOMOYNEWS
+SOMOY NEWS | @somoynews360
 CHANNEL-1  | TdwhCOFh9OA
+
