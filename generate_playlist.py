@@ -5,39 +5,29 @@ import yt_dlp
 
 print("🚀 YouTube HLS Playlist Generator (yt-dlp powered)")
 
-# ---------------- Helper functions ---------------- #
+# ---------- Helpers ---------- #
 
 def normalize_to_watch_url(token: str) -> str:
     """
-    Accepts @handle, videoId, or any YouTube URL and returns a valid YouTube link.
-    - @handle -> https://www.youtube.com/@handle/live
-    - videoId -> https://www.youtube.com/watch?v=videoId
-    - full URL -> returned as-is
+    Converts @handle, videoId, or full YouTube URL into a valid link.
     """
     token = token.strip()
     if not token:
         return None
-
     if token.startswith("@"):
         return f"https://www.youtube.com/{token}/live"
-
     if token.startswith("http://") or token.startswith("https://"):
         return token
-
-    # Assume plain video id
     return f"https://www.youtube.com/watch?v={token}"
-
 
 def extract_hls_url(url: str) -> str | None:
     """
-    Uses yt-dlp to extract the best HLS (.m3u8) URL if available.
-    Returns an m3u8 URL or None if not found / not live.
+    Uses yt-dlp to extract the best playable .m3u8 URL (HLS).
     """
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        # Force yt-dlp to get the best actual stream URLs
         "format": "bestvideo+bestaudio/best",
         "geo_bypass": True,
         "source_address": "0.0.0.0",
@@ -54,7 +44,6 @@ def extract_hls_url(url: str) -> str | None:
         print(f"[WARN] Unexpected extractor error for {url}: {e}")
         return None
 
-    # --- Find the best HLS .m3u8 URL ---
     formats = info.get("formats", []) or []
     hls_candidates = []
     for f in formats:
@@ -67,10 +56,8 @@ def extract_hls_url(url: str) -> str | None:
 
     if hls_candidates:
         hls_candidates.sort(key=lambda x: x[0])
-        chosen = hls_candidates[-1][1]
-        return chosen
+        return hls_candidates[-1][1]
 
-    # Fallback: some live streams expose "url" directly
     fallback = info.get("url")
     if isinstance(fallback, str) and ".m3u8" in fallback:
         return fallback
@@ -78,7 +65,7 @@ def extract_hls_url(url: str) -> str | None:
     return None
 
 
-# ---------------- Main generator ---------------- #
+# ---------- Main ---------- #
 
 def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
     if not os.path.exists(input_file):
@@ -100,22 +87,17 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
 
             parts = [p.strip() for p in line.split("|")]
             if len(parts) != 2:
-                print(f"[SKIP] Malformed line (use 'Name | id/handle/url'): {line}")
+                print(f"[SKIP] Malformed line: {line}")
                 continue
 
             name, token = parts
             if token in seen:
-                print(f"[SKIP] Duplicate: {token}")
                 continue
             seen.add(token)
             total += 1
 
             url = normalize_to_watch_url(token)
-            if not url:
-                print(f"[SKIP] Could not normalize: {token}")
-                continue
-
-            print(f"[INFO] Processing {name} ({url})...")
+            print(f"[INFO] Processing {name} ({url}) ...")
             hls = extract_hls_url(url)
             if hls:
                 lines_out.append(f"#EXTINF:-1,{name}")
@@ -131,7 +113,6 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
         out.write("\n".join(lines_out) + "\n")
 
     print(f"[DONE] {added}/{total} entries produced HLS. Wrote '{output_file}'.")
-
 
 if __name__ == "__main__":
     generate_m3u8_playlist()
