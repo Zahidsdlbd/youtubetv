@@ -2,51 +2,72 @@ name: Scheduled HLS Playlist Update
 
 on:
   schedule:
-    # Runs every 30 minutes
-    - cron: '*/30 * * * *' 
-  workflow_dispatch: 
+    # Runs every 30 minutes (CRON is in UTC)
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+# Allow the built-in GITHUB_TOKEN to push commits
+permissions:
+  contents: write
+
+# Avoid overlapping runs touching the same file
+concurrency:
+  group: playlist-update
+  cancel-in-progress: true
 
 jobs:
   update_playlist:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
-        # We need to fetch the full history to enable pushing changes
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Important for Git to push back changes
-          
+          fetch-depth: 0  # required to push back commits
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
-          
-      - name: Install dependencies (requests)
-        run: pip install requests
-        
-      - name: Run Playlist Generation Script
-        # Executes your Python file, creating/overwriting playlist.m3u8
-        run: python generate_playlist.py
-        
-      - name: Configure Git and Commit/Push Changes
-        # 🚨 REPLACING THE FAILING ACTION WITH STANDARD GIT COMMANDS 🚨
+          python-version: "3.x"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
-          # 1. Check if the file has changed (optional, but clean)
-          if git diff --exit-code playlist.m3u8 > /dev/null; then
-            echo "No changes found in playlist.m3u8. Skipping commit."
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
           else
-            echo "Changes detected. Committing and pushing."
-            
-            # 2. Configure Git user for the commit
-            git config user.name "GitHub Actions Bot"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            
-            # 3. Add and Commit the file
-            git add playlist.m3u8
-            git commit -m "🤖 Playlist update: new HLS links [skip ci]"
-            
-            # 4. Push the change using the built-in token
-            # This requires 'fetch-depth: 0' above to work correctly
-            git push
+            pip install requests
           fi
+
+      - name: Generate playlist
+        run: python generate_playlist.py
+
+      - name: Commit & push if changed
+        run: |
+          set -e
+
+          # Show diff for debugging (optional)
+          git status
+          git --no-pager diff -- playlist.m3u8 || true
+
+          if git diff --quiet -- playlist.m3u8; then
+            echo "No changes in playlist.m3u8. Skipping commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Rebase to avoid non-fast-forward errors if main moved
+          git pull --rebase
+
+          git add playlist.m3u8
+          git commit -m "🤖 Playlist update: new HLS links [skip ci]"
+          git push
