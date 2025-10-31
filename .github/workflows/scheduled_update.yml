@@ -40,7 +40,7 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install requests
+            pip install yt-dlp
           fi
 
       - name: Generate playlist
@@ -50,8 +50,6 @@ jobs:
         run: |
           set -e
           echo "🔍 Checking playlist changes..."
-          git status
-
           if git diff --quiet -- playlist.m3u8; then
             echo "✅ No updates detected — skipping commit."
             exit 0
