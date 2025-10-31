@@ -2,7 +2,6 @@ import os
 import sys
 from datetime import datetime
 import yt_dlp
-import urllib.parse
 
 print("🚀 YouTube HLS Playlist Generator (yt-dlp powered)")
 
@@ -10,7 +9,7 @@ print("🚀 YouTube HLS Playlist Generator (yt-dlp powered)")
 
 def normalize_to_watch_url(token: str) -> str:
     """
-    Accepts @handle, videoId, or any YouTube URL and returns a resolvable URL.
+    Accepts @handle, videoId, or any YouTube URL and returns a valid YouTube link.
     - @handle -> https://www.youtube.com/@handle/live
     - videoId -> https://www.youtube.com/watch?v=videoId
     - full URL -> returned as-is
@@ -31,24 +30,23 @@ def normalize_to_watch_url(token: str) -> str:
 
 def extract_hls_url(url: str) -> str | None:
     """
-    Uses yt-dlp to extract the best HLS (m3u8) URL if available.
+    Uses yt-dlp to extract the best HLS (.m3u8) URL if available.
     Returns an m3u8 URL or None if not found / not live.
     """
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        # Force yt-dlp to get actual stream URLs (HLS or DASH)
+        # Force yt-dlp to get the best actual stream URLs
         "format": "bestvideo+bestaudio/best",
-        "force_generic_extractor": False,
         "geo_bypass": True,
-        "source_address": "0.0.0.0",  # helps avoid rate-limiting
+        "source_address": "0.0.0.0",
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            print(f"[DEBUG] Extracted keys for {url}: {list(info.keys())}")
+            print(f"[DEBUG] Extracted info for {url}: {info.get('title')}")
     except yt_dlp.utils.DownloadError as e:
         print(f"[WARN] yt-dlp could not extract from {url}: {e}")
         return None
@@ -72,7 +70,7 @@ def extract_hls_url(url: str) -> str | None:
         chosen = hls_candidates[-1][1]
         return chosen
 
-    # Fallback: some lives expose 'url' directly
+    # Fallback: some live streams expose "url" directly
     fallback = info.get("url")
     if isinstance(fallback, str) and ".m3u8" in fallback:
         return fallback
@@ -134,8 +132,6 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
 
     print(f"[DONE] {added}/{total} entries produced HLS. Wrote '{output_file}'.")
 
-
-# ---------------- Script entry ---------------- #
 
 if __name__ == "__main__":
     generate_m3u8_playlist()
