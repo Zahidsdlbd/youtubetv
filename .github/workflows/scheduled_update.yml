@@ -1,10 +1,9 @@
 name: Scheduled HLS Playlist Update
 
 on:
-  # Runs every 30 minutes (CRON syntax)
   schedule:
+    # Runs every 30 minutes
     - cron: '*/30 * * * *' 
-  # Allows manual running from the 'Actions' tab
   workflow_dispatch: 
 
 jobs:
@@ -13,27 +12,41 @@ jobs:
     
     steps:
       - name: Checkout code
-        # Downloads your repository files
+        # We need to fetch the full history to enable pushing changes
         uses: actions/checkout@v4
-        
+        with:
+          fetch-depth: 0 # Important for Git to push back changes
+          
       - name: Set up Python
-        # Installs Python environment
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
           
       - name: Install dependencies (requests)
-        # Installs the Python library needed for scraping
         run: pip install requests
         
       - name: Run Playlist Generation Script
-        # Executes your Python file (generate_playlist.py)
+        # Executes your Python file, creating/overwriting playlist.m3u8
         run: python generate_playlist.py
         
-      - name: Commit and Push new M3U8 file
-        # 🛠️ CORRECTED ACTION: Uses the stable, working git-auto-commit action 🛠️
-        uses: peter-evans/git-auto-commit-action@v3
-        with:
-          commit_message: '🤖 Playlist update: new HLS links'
-          files: playlist.m3u8
-          branch: main # Change to 'master' if that is your primary branch
+      - name: Configure Git and Commit/Push Changes
+        # 🚨 REPLACING THE FAILING ACTION WITH STANDARD GIT COMMANDS 🚨
+        run: |
+          # 1. Check if the file has changed (optional, but clean)
+          if git diff --exit-code playlist.m3u8 > /dev/null; then
+            echo "No changes found in playlist.m3u8. Skipping commit."
+          else
+            echo "Changes detected. Committing and pushing."
+            
+            # 2. Configure Git user for the commit
+            git config user.name "GitHub Actions Bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            
+            # 3. Add and Commit the file
+            git add playlist.m3u8
+            git commit -m "🤖 Playlist update: new HLS links [skip ci]"
+            
+            # 4. Push the change using the built-in token
+            # This requires 'fetch-depth: 0' above to work correctly
+            git push
+          fi
