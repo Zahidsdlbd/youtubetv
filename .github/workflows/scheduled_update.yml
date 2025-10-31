@@ -1,0 +1,41 @@
+name: Scheduled HLS Playlist Update
+
+on:
+  # This sets the schedule to run every 30 minutes.
+  # CRON format: minute hour day-of-month month day-of-week
+  schedule:
+    - cron: '*/30 * * * *' 
+  # Allows manual triggering from the GitHub Actions tab
+  workflow_dispatch: 
+
+jobs:
+  update_playlist:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        # Downloads your repository code so the script can run
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        # Installs Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install dependencies (requests)
+        # Installs the 'requests' library needed by the script
+        run: pip install requests
+        
+      - name: Run Playlist Generation Script
+        # Executes your Python file
+        run: python generate_playlist.py
+        
+      - name: Commit and Push new M3U8 file
+        # This action automatically commits the updated 'playlist.m3u8' file back to the repo
+        uses: stefanwa/git-auto-commit-action@v5
+        with:
+          commit_message: '🤖 Playlist update: new HLS links'
+          files: playlist.m3u8
+          branch: main # or master, depending on your default branch
+          # GitHub Actions automatically handles permissions for committing
