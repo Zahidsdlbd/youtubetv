@@ -1,12 +1,12 @@
 import os
-import re
 import sys
-import urllib.parse
 from datetime import datetime
-
 import yt_dlp
+import urllib.parse
 
-BANNER = "YouTube HLS Playlist Generator (yt-dlp powered)"
+print("🚀 YouTube HLS Playlist Generator (yt-dlp powered)")
+
+# ---------------- Helper functions ---------------- #
 
 def normalize_to_watch_url(token: str) -> str:
     """
@@ -28,6 +28,7 @@ def normalize_to_watch_url(token: str) -> str:
     # Assume plain video id
     return f"https://www.youtube.com/watch?v={token}"
 
+
 def extract_hls_url(url: str) -> str | None:
     """
     Uses yt-dlp to extract the best HLS (m3u8) URL if available.
@@ -37,49 +38,53 @@ def extract_hls_url(url: str) -> str | None:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        # Some lives need this; prefer HLS
-        "format": "best",
+        # Force yt-dlp to get actual stream URLs (HLS or DASH)
+        "format": "bestvideo+bestaudio/best",
+        "force_generic_extractor": False,
+        "geo_bypass": True,
+        "source_address": "0.0.0.0",  # helps avoid rate-limiting
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            print(f"[DEBUG] Extracted keys for {url}: {list(info.keys())}")
     except yt_dlp.utils.DownloadError as e:
-        print(f"[WARN] yt-dlp could not extract: {e}")
+        print(f"[WARN] yt-dlp could not extract from {url}: {e}")
         return None
     except Exception as e:
-        print(f"[WARN] Unexpected extractor error: {e}")
+        print(f"[WARN] Unexpected extractor error for {url}: {e}")
         return None
 
-    # 1) Prefer explicit HLS formats
+    # --- Find the best HLS .m3u8 URL ---
     formats = info.get("formats", []) or []
     hls_candidates = []
     for f in formats:
-        prot = f.get("protocol") or ""
+        proto = f.get("protocol") or ""
         url_f = f.get("url")
         if not url_f:
             continue
-        if "m3u8" in prot or (isinstance(url_f, str) and ".m3u8" in url_f):
-            # Use tbr (bitrate) as quality proxy
+        if "m3u8" in proto or (isinstance(url_f, str) and ".m3u8" in url_f):
             hls_candidates.append((f.get("tbr", 0) or 0, url_f))
 
     if hls_candidates:
-        # choose highest tbr
         hls_candidates.sort(key=lambda x: x[0])
         chosen = hls_candidates[-1][1]
         return chosen
 
-    # 2) Fallback: sometimes info['url'] is already a playable m3u8 for lives
+    # Fallback: some lives expose 'url' directly
     fallback = info.get("url")
-    if isinstance(fallback, str) and fallback.endswith(".m3u8"):
+    if isinstance(fallback, str) and ".m3u8" in fallback:
         return fallback
 
-    # 3) No HLS found
     return None
+
+
+# ---------------- Main generator ---------------- #
 
 def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
     if not os.path.exists(input_file):
-        print(f"[FATAL] Missing {input_file}.")
+        print(f"[FATAL] Missing {input_file}. Please create it.")
         sys.exit(1)
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -112,6 +117,7 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
                 print(f"[SKIP] Could not normalize: {token}")
                 continue
 
+            print(f"[INFO] Processing {name} ({url})...")
             hls = extract_hls_url(url)
             if hls:
                 lines_out.append(f"#EXTINF:-1,{name}")
@@ -120,6 +126,7 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
                 added += 1
                 print(f"[OK] Added HLS for {name}")
             else:
+                lines_out.append(f"#EXTINF:-1,{name} (offline)")
                 print(f"[INFO] No HLS for {name} (not live or restricted).")
 
     with open(output_file, "w", encoding="utf-8") as out:
@@ -127,6 +134,8 @@ def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
 
     print(f"[DONE] {added}/{total} entries produced HLS. Wrote '{output_file}'.")
 
+
+# ---------------- Script entry ---------------- #
+
 if __name__ == "__main__":
-    print(BANNER)
     generate_m3u8_playlist()
