@@ -1,4 +1,4 @@
-Tsports Live | TSports
-Tsports YT Live Live | BD
-Official Sports Channel | @Sports
-Sports | 0_OBsrxbyoQ
+# Format: Channel Name | @handle or videoId
+SOMOY NEWS | @SOMOYNEWS
+SOMOY News | @SOMOYNEWS
+CHANNEL-1  | TdwhCOFh9OA
