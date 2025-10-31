@@ -1,63 +1,132 @@
-import os, re, sys, requests
+import os
+import re
+import sys
+import urllib.parse
 from datetime import datetime
-from requests.adapters import HTTPAdapter, Retry
 
-def make_session():
-    session = requests.Session()
-    retries = Retry(
-        total=3, backoff_factor=2,
-        status_forcelist=[429,500,502,503,504],
-        allowed_methods=["GET"]
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retries))
-    return session
+import yt_dlp
 
-session = make_session()
-HEADERS = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.youtube.com"}
+BANNER = "YouTube HLS Playlist Generator (yt-dlp powered)"
 
-def get_yt_hls(video_id):
-    if video_id.startswith('@'):
-        url = f"https://www.youtube.com/{video_id}/live"
-    else:
-        url = f"https://www.youtube.com/watch?v={video_id}"
+def normalize_to_watch_url(token: str) -> str:
+    """
+    Accepts @handle, videoId, or any YouTube URL and returns a resolvable URL.
+    - @handle -> https://www.youtube.com/@handle/live
+    - videoId -> https://www.youtube.com/watch?v=videoId
+    - full URL -> returned as-is
+    """
+    token = token.strip()
+    if not token:
+        return None
+
+    if token.startswith("@"):
+        return f"https://www.youtube.com/{token}/live"
+
+    if token.startswith("http://") or token.startswith("https://"):
+        return token
+
+    # Assume plain video id
+    return f"https://www.youtube.com/watch?v={token}"
+
+def extract_hls_url(url: str) -> str | None:
+    """
+    Uses yt-dlp to extract the best HLS (m3u8) URL if available.
+    Returns an m3u8 URL or None if not found / not live.
+    """
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        # Some lives need this; prefer HLS
+        "format": "best",
+    }
+
     try:
-        r = session.get(url, headers=HEADERS, timeout=20)
-        r.raise_for_status()
-        m = re.search(r'"hlsManifestUrl":"([^"]+)"', r.text)
-        if m:
-            return m.group(1).replace("\\u0026", "&")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except yt_dlp.utils.DownloadError as e:
+        print(f"[WARN] yt-dlp could not extract: {e}")
+        return None
     except Exception as e:
-        print(f"Error fetching {video_id}: {e}")
+        print(f"[WARN] Unexpected extractor error: {e}")
+        return None
+
+    # 1) Prefer explicit HLS formats
+    formats = info.get("formats", []) or []
+    hls_candidates = []
+    for f in formats:
+        prot = f.get("protocol") or ""
+        url_f = f.get("url")
+        if not url_f:
+            continue
+        if "m3u8" in prot or (isinstance(url_f, str) and ".m3u8" in url_f):
+            # Use tbr (bitrate) as quality proxy
+            hls_candidates.append((f.get("tbr", 0) or 0, url_f))
+
+    if hls_candidates:
+        # choose highest tbr
+        hls_candidates.sort(key=lambda x: x[0])
+        chosen = hls_candidates[-1][1]
+        return chosen
+
+    # 2) Fallback: sometimes info['url'] is already a playable m3u8 for lives
+    fallback = info.get("url")
+    if isinstance(fallback, str) and fallback.endswith(".m3u8"):
+        return fallback
+
+    # 3) No HLS found
     return None
 
 def generate_m3u8_playlist(input_file="links.txt", output_file="playlist.m3u8"):
     if not os.path.exists(input_file):
-        print(f"Missing {input_file}")
+        print(f"[FATAL] Missing {input_file}.")
         sys.exit(1)
 
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-    playlist = [f"#EXTM3U", f"# Generated on {now}", "#EXT-X-VERSION:3"]
-    found = 0
+    lines_out = ["#EXTM3U", f"# Generated on {now}", "#EXT-X-VERSION:3"]
+
+    total = 0
+    added = 0
     seen = set()
 
-    for line in open(input_file, "r", encoding="utf-8"):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        try:
-            name, vid = [p.strip() for p in line.split("|")]
-            if vid in seen: continue
-            seen.add(vid)
-            hls = get_yt_hls(vid)
-            if hls:
-                playlist += [f"#EXTINF:-1,{name}", "#EXT-X-PROGRAM-ID:1", hls]
-                found += 1
-        except Exception as e:
-            print(f"Error parsing line {line}: {e}")
+    with open(input_file, "r", encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(playlist))
-    print(f"✅ Saved {output_file} with {found} streams.")
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) != 2:
+                print(f"[SKIP] Malformed line (use 'Name | id/handle/url'): {line}")
+                continue
+
+            name, token = parts
+            if token in seen:
+                print(f"[SKIP] Duplicate: {token}")
+                continue
+            seen.add(token)
+            total += 1
+
+            url = normalize_to_watch_url(token)
+            if not url:
+                print(f"[SKIP] Could not normalize: {token}")
+                continue
+
+            hls = extract_hls_url(url)
+            if hls:
+                lines_out.append(f"#EXTINF:-1,{name}")
+                lines_out.append("#EXT-X-PROGRAM-ID:1")
+                lines_out.append(hls)
+                added += 1
+                print(f"[OK] Added HLS for {name}")
+            else:
+                print(f"[INFO] No HLS for {name} (not live or restricted).")
+
+    with open(output_file, "w", encoding="utf-8") as out:
+        out.write("\n".join(lines_out) + "\n")
+
+    print(f"[DONE] {added}/{total} entries produced HLS. Wrote '{output_file}'.")
 
 if __name__ == "__main__":
+    print(BANNER)
     generate_m3u8_playlist()
