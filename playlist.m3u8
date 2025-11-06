@@ -1,5 +1,7 @@
 #EXTM3U
-# Generated on 2025-11-06 02:44:48 UTC
+# Generated on 2025-11-06 03:43:24 UTC
 #EXT-X-VERSION:3
-#EXTINF:-1,Independent Television (offline)
+#EXTINF:-1,Independent Television
+#EXT-X-PROGRAM-ID:1
+https://manifest.googlevideo.com/api/manifest/hls_playlist/expire/1762422207/ei/XxkMadriBNip0_wP-eTfsAk/ip/172.178.117.208/id/ZgJcq58shuo.1/itag/96/source/yt_live_broadcast/requiressl/yes/ratebypass/yes/live/1/sgoap/gir%3Dyes%3Bitag%3D140/sgovp/gir%3Dyes%3Bitag%3D137/rqh/1/hls_chunk_host/rr4---sn-p5qs7nzk.googlevideo.com/xpc/EgVo2aDSNQ%3D%3D/playlist_duration/30/manifest_duration/30/bui/AdEuB5R3tJhYCiczar1PNKykkY-2wXT9ngk6iHLY8PKcURmguFWIlh_I4-5GRkLpP9KR-2dnHOp5kRD0/spc/6b0G_PzeSS92YXzKxXRT-Kd3rZ4GBOZdQECh8Rg64_GhspjTwQKWekp5Bl1uFrj9Qek/vprv/1/playlist_type/DVR/met/1762400607,/mh/NU/mm/44/mn/sn-p5qs7nzk/ms/lva/mv/u/mvi/4/pl/22/rms/lva,lva/dover/11/pacing/0/keepalive/yes/fexp/51355912,51552689,51565116,51565682,51580968/mt/1762400011/sparams/expire,ei,ip,id,itag,source,requiressl,ratebypass,live,sgoap,sgovp,rqh,xpc,playlist_duration,manifest_duration,bui,spc,vprv,playlist_type/sig/AJfQdSswRAIgYo6cBiKxxgHK5AiGn5FJKNEyWKWY-L98jDxMdnwaW88CIAKGnkVJC0yIKGF3NsscAa8xCIznjEGmNFn_ZB_9aHAU/lsparams/hls_chunk_host,met,mh,mm,mn,ms,mv,mvi,pl,rms/lsig/APaTxxMwRgIhANj9VWoIkrRk-DxPlv8s-S82g8_-PFLDmeOuE4cQixngAiEAkGD9Epg8LPRmr-UW6lCLp0RVhjVW_B1nizp9cvN3GdU%3D/playlist/index.m3u8
 #EXTINF:-1,NASA Live (offline)
